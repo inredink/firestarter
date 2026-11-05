@@ -1,0 +1,5 @@
+objs/
+objs_debug/
+*.exe
+*.dll
+log.txt

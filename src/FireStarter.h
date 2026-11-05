@@ -2,6 +2,7 @@
 #define _FireStarter_H
 
 #include "AllegroBitmapGame.h"
+#include "DisplayConfig.h"
 #include "partypack/resourcemanager.h"
 #include "MusicPlayer.h"
 #include "GameState.h"
@@ -10,6 +11,7 @@
 class LevelSet;
 class Menu;
 class MainGame;
+class IntroSequence;
 class Gamepad;
 
 #define UP 		0
@@ -27,9 +29,13 @@ class FireStarter : public AllegroBitmapGame {
 		FireStarter();
 		virtual ~FireStarter();
 
-		virtual int getScreenX() { return 400; }
-		virtual int getScreenY() { return 600; }
+		virtual int getScreenX() { return displayWidth * windowScale; }
+		virtual int getScreenY() { return displayHeight * windowScale; }
 		virtual int getScreenBPP() { return 16; }
+
+		int getDisplayWidth() const { return displayWidth; }
+		int getDisplayHeight() const { return displayHeight; }
+		void setDisplayResolution(int w, int h, int scale = FIRESTARTER_WINDOW_SCALE);
 
 		virtual void setupGame();
 		virtual void updateGameLogic();
@@ -38,9 +44,14 @@ class FireStarter : public AllegroBitmapGame {
 		virtual char *getTitle() { return "Fire Starter"; }
 
 		void switchMusic();
+		void returnToTitle();
 	public:
 
 		//enum { UP, DOWN, LEFT, RIGHT, A, B, START, SELECT };
+
+		int displayWidth;
+		int displayHeight;
+		int windowScale;
 
 		alBitmap smallscreen;
 
@@ -56,6 +67,7 @@ class FireStarter : public AllegroBitmapGame {
 
 		Menu *menu;
 		MainGame *maingame;
+		IntroSequence *intro;
 
 		Gamepad *input;
 

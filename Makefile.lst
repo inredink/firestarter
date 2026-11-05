@@ -4,6 +4,7 @@ MODULES = \
 	AllegroBitmapGame\
 	Main\
 	MainGame\
+	IntroSequence\
 	Random\
 	Music\
 	MusicPlayer\

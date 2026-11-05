@@ -3,6 +3,7 @@
 #include "Global.h"
 #include "GameState.h"
 #include "MainGame.h"
+#include "IntroSequence.h"
 #include "Music.h"
 #include <loadpng.h>
 //#include <algif.h>
@@ -19,16 +20,36 @@ FireStarter *gSys;
 
 FireStarter::FireStarter() {
 	gSys = this;
+	displayWidth = FIRESTARTER_DISPLAY_WIDTH;
+	displayHeight = FIRESTARTER_DISPLAY_HEIGHT;
+	windowScale = FIRESTARTER_WINDOW_SCALE;
 	game = 0;
 	mp = 0;
 	datafile = 0;
+	maingame = 0;
+	intro = 0;
+	title = 0;
+	menu = 0;
+	input = 0;
 }
 FireStarter::~FireStarter() {
+	delete intro;
+	delete title;
+	delete menu;
 	delete maingame;
 	delete mp;
 	delete input;
 	if (datafile)
 		unload_datafile(datafile);
+}
+
+void FireStarter::setDisplayResolution(int w, int h, int scale) {
+	if (w > 0) displayWidth = w;
+	if (h > 0) displayHeight = h;
+	if (scale > 0) windowScale = scale;
+	if (smallscreen.getBITMAP()) {
+		smallscreen.create(displayWidth, displayHeight);
+	}
 }
 
 void FireStarter::setupGame() {
@@ -38,7 +59,7 @@ void FireStarter::setupGame() {
 	//jpgalleg_init();
 	register_png_file_type();
 
-	smallscreen.create(200,300);
+	smallscreen.create(displayWidth, displayHeight);
 
 	datafile = load_datafile("data/fonts.dat");
 
@@ -66,23 +87,18 @@ void FireStarter::setupGame() {
 	input->bind(SELECT,new KeyboardButton(KEY_RSHIFT));
 
 	title = new Title;
-
-	game = title;
-
 	menu = new Menu;
 
 	maingame = new MainGame;
 	maingame->setup();
 
+	intro = new IntroSequence;
+	game = intro;
 
 	mp = new MusicPlayer;
 	music = rand()%2;
 
 	switchMusic();
-
-#ifdef DEBUGMODE
-	game = maingame;
-#endif
 }
 void FireStarter::switchMusic() {
 	music = !music;
@@ -91,6 +107,14 @@ void FireStarter::switchMusic() {
 	else
 		mp->play(rm.load<Music>("data/hybrid_rainbow.it"));
 
+}
+void FireStarter::returnToTitle() {
+	if (intro) {
+		intro->resetToTitle();
+		game = intro;
+	} else {
+		game = title;
+	}
 }
 FireStarter::Title::Title() {
 	title = gSys->rm.load<Bitmap>("data/title.png")->getABitmap();
@@ -120,7 +144,7 @@ void FireStarter::updateGameLogic() {
 		pressf9 = false;
 
 	if (key[KEY_F2])
-		game = title;
+		returnToTitle();
 
 	game->update();
 }
@@ -128,6 +152,5 @@ void FireStarter::updateGameLogic() {
 void FireStarter::drawScreen(alBitmap &buffer) {
 
 	game->draw(smallscreen);
-	smallscreen.stretchBlitTo(buffer,0,0,400,600);
+	smallscreen.stretchBlitTo(buffer, 0, 0, getScreenX(), getScreenY());
 }
-

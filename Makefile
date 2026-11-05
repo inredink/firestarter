@@ -18,10 +18,10 @@ WIN32=1
 DEBUGMODE=1
 
 ### Warn mode
-WFLAGS = -Wall -W -Werror -Wno-unused -fmessage-length=0
+WFLAGS = -Wall -W -Wno-unused -Wno-write-strings -fpermissive -std=gnu++98 -fmessage-length=0
 
 
-CFLAGS = $(WFLAGS) -MMD -DXP_WIN -D_WINDOWS -DWIN32 -D_MINGW
+CFLAGS = $(WFLAGS) -MMD -DXP_WIN -D_WINDOWS -DWIN32 -D_MINGW $(EXTRA_CFLAGS)
 
 
 ifdef	DEBUGMODE
@@ -55,17 +55,18 @@ include Makefile.lst
 
 first: test
 
-all: $(NAME)$(DEBUG_DIR)$(EXE) editor$(EXE)
+all: $(NAME)$(DEBUG_DIR)$(EXE)
 
 test: $(NAME)$(DEBUG_DIR)$(EXE)
 	$(NAME)$(DEBUG_DIR)$(EXE)
 
 src/Data.h: data/fonts.dat
-	c:\allegro\tools\dat -h $@ -p DATA_FONTS_ $^
+	dat -h $@ -p DATA_FONTS_ $^
 
 $(NAME)$(DEBUG_DIR)$(EXE): $(OBJS)
 	$(CXX) $(OBJS) -o $@ -mwindows $(LIBDIR) $(LIBS)
-	
+	cp -f $@ $(NAME)$(EXE)
+
 editor$(EXE): $(EDITOR_OBJS)
 	$(CXX) $(EDITOR_OBJS) -o $@ $(LIBDIR) $(LIBS)
 
@@ -73,11 +74,11 @@ editor$(EXE): $(EDITOR_OBJS)
 
 
 objs$(DEBUG_DIR)/%.o: src/%.cpp src/%.h
-	@echo _
+	@mkdir -p $(dir $@)
 	$(CXX) -c $< -o $@ $(CFLAGS)
 	
 	
 clean:
-	$(RM) $(NAME)$(EXE)
-	$(RM) objs$(DEBUG_DIR)/*.d
-	$(RM) objs$(DEBUG_DIR)/*.o
+	$(RM) $(NAME)$(EXE) $(NAME)$(DEBUG_DIR)$(EXE)
+	$(RM) objs$(DEBUG_DIR)/*.d objs$(DEBUG_DIR)/partypack/*.d
+	$(RM) objs$(DEBUG_DIR)/*.o objs$(DEBUG_DIR)/partypack/*.o

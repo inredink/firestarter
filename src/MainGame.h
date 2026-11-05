@@ -25,6 +25,8 @@ class MainGame : public GameState {
 		void draw(alBitmap &bitmap);
 
 		int getScore() { return score; }
+		int getHearts() { return hearts; }
+		bool isCanPlay() { return canPlay; }
 		bool paused;
 
 	private:
@@ -35,6 +37,7 @@ class MainGame : public GameState {
 		alBitmap buildings2[BUILDING_COUNT];
 
 		alBitmap pausescreen;
+		alBitmap gameCanvas;
 
 		SAMPLE *firefx, *sirenfx;
 

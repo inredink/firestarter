@@ -64,6 +64,7 @@ MainGame::MainGame() {
 					buildings2[i].setPixel(x,y,color);
 	}
 
+	gameCanvas.create(200,300);
 	pausescreen.create(200,300);
 	pausescreen.clear(pausescreen.getMaskColor());
 	for (int y=0; y<pausescreen.getHeight(); y++)
@@ -154,7 +155,7 @@ void MainGame::update() {
 			pressp = 0;
 	} else {
 		if (gSys->input->isDown(START))
-			gSys->game = gSys->title;
+			gSys->returnToTitle();
 	}
 	static int presss = 0;
 	if (gSys->input->isDown(SELECT)) {
@@ -167,7 +168,8 @@ void MainGame::update() {
 
 }
 
-void MainGame::draw(alBitmap &buffer) {
+void MainGame::draw(alBitmap &targetBuffer) {
+	alBitmap &buffer = gameCanvas;
 	buffer.clear(gSys->colors[5]);
 
 	if (canPlay) {
@@ -196,6 +198,12 @@ void MainGame::draw(alBitmap &buffer) {
 	}
 
 	buffer.textprintf(gSys->scorefont, 98,3, gSys->colors[0], -1, "%08i", score);
+
+	if (targetBuffer.getWidth() == buffer.getWidth() && targetBuffer.getHeight() == buffer.getHeight()) {
+		buffer.blitTo(targetBuffer, 0, 0);
+	} else {
+		buffer.stretchBlitTo(targetBuffer, 0, 0, targetBuffer.getWidth(), targetBuffer.getHeight());
+	}
 }
 
 void MainGame::GameObject::updatePos() {
