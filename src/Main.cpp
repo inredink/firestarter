@@ -3,6 +3,7 @@
 
 Log gLog;
 
+#ifndef FIRESTARTER_PLATFORM_ESP32
 int main() {
 	gLog.start("log.txt", Log::vDebug);
 
@@ -13,3 +14,4 @@ int main() {
 	allegro_exit();
 	return 0;
 } END_OF_MAIN();
+#endif

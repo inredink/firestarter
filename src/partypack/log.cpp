@@ -34,6 +34,7 @@ void Log::start(std::string fn, int _verbosity)
 	filename = fn;
 	verbosity = _verbosity;
 
+#ifndef FIRESTARTER_PLATFORM_ESP32
 	time_t now = time(0);
 	static char nows[128];
 	strftime(nows, sizeof(nows), "%Y/%m/%d %H:%M:%S", localtime(&now));
@@ -43,6 +44,7 @@ void Log::start(std::string fn, int _verbosity)
 	stream.close();
 
 	log(vSystem, "Logging started %s with verbosity level %d", nows, verbosity);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,7 @@ void Log::log(int mverbosity, const char *str, ...)
 	if (filename.length() == 0)
 		return;
 
+#ifndef FIRESTARTER_PLATFORM_ESP32
 	static char buf[4096];
 
 	va_list ap;
@@ -80,4 +83,7 @@ void Log::log(int mverbosity, const char *str, ...)
 
 	stream << buf << endl;
 	stream.close();
+#else
+	(void)str;
+#endif
 }

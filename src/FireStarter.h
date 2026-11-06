@@ -39,7 +39,12 @@ class FireStarter : public AllegroBitmapGame {
 
 		virtual void setupGame();
 		virtual void updateGameLogic();
+		using AllegroBitmapGame::drawScreen;
 		virtual void drawScreen(alBitmap &buffer);
+		void presentScreen() {
+			AllegroBitmapGame::drawScreen();
+			AllegroBitmapGame::updateScreen();
+		}
 
 		virtual char *getTitle() { return "Fire Starter"; }
 

@@ -10,9 +10,13 @@
 #define FIRESTARTER_DISPLAY_HEIGHT 320
 #endif
 
-// Desktop window integer scale factor (2x = 480x640 window for 240x320 display)
+// Desktop window integer scale factor (1x native 240x320 on ESP32-S3, 2x = 480x640 on desktop)
 #ifndef FIRESTARTER_WINDOW_SCALE
+#ifdef FIRESTARTER_PLATFORM_ESP32
+#define FIRESTARTER_WINDOW_SCALE 1
+#else
 #define FIRESTARTER_WINDOW_SCALE 2
+#endif
 #endif
 
 // Original game internal logical dimensions (preserved for gameplay/HUD fidelity)
