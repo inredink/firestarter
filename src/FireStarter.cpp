@@ -102,11 +102,7 @@ void FireStarter::setupGame() {
 }
 void FireStarter::switchMusic() {
 	music = !music;
-	if (music)
-		mp->play(rm.load<Music>("data/lilbustr.xm"));
-	else
-		mp->play(rm.load<Music>("data/hybrid_rainbow.it"));
-
+	mp->play(rm.load<Music>("data/stalker_babylon.xm"));
 }
 void FireStarter::returnToTitle() {
 	if (intro) {

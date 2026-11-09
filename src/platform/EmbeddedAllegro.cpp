@@ -820,12 +820,9 @@ static void *embedded_dumb_open(const char *filename) {
     if (!filename) return NULL;
     const uint8_t *data = NULL;
     uint32_t size = 0;
-    if (strcmp(filename, "data/lilbustr.xm") == 0) {
-        data = raw_lilbustr_xm_data;
-        size = raw_lilbustr_xm_size;
-    } else if (strcmp(filename, "data/hybrid_rainbow.it") == 0) {
-        data = raw_hybrid_rainbow_it_data;
-        size = raw_hybrid_rainbow_it_size;
+    if (strcmp(filename, "data/stalker_babylon.xm") == 0) {
+        data = raw_stalker_babylon_xm_data;
+        size = raw_stalker_babylon_xm_size;
     } else {
         return NULL;
     }

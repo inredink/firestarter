@@ -40,10 +40,9 @@ struct RawEntry {
 };
 
 static const RawEntry RAW_FILES[] = {
-    { "data/player.nws",        "raw_player_nws" },
-    { "data/fire.nws",          "raw_fire_nws" },
-    { "data/lilbustr.xm",       "raw_lilbustr_xm" },
-    { "data/hybrid_rainbow.it", "raw_hybrid_rainbow_it" }
+    { "data/player.nws",         "raw_player_nws" },
+    { "data/fire.nws",           "raw_fire_nws" },
+    { "data/stalker_babylon.xm", "raw_stalker_babylon_xm" }
 };
 static const int RAW_COUNT = sizeof(RAW_FILES) / sizeof(RAW_FILES[0]);
 
