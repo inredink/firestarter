@@ -1,10 +1,6 @@
 # FLCL – Fire Starter (Faithful Game Recreation & ESP32-S3 Handheld Port)
 
-Based on the 2005 recreation by **Marcello Bastea-Forte** (`marcello3d/firestarter`), with original music, graphics, and sound effects by **Zack Fowler**, additional music by **Travis Skare**, and `partypack` utilities by **X-G**.
-
 ## Overview
-
-This branch (`flcl-handheld-port`) preserves the original 2005 gameplay baseline in full while delivering both the **Desktop build** and the **Dedicated ESP32-S3 Portrait Handheld Firmware**:
 
 1. **`FIRE STARTER` Title Screen ([`src/IntroSequence.h`](src/IntroSequence.h), [`src/IntroSequence.cpp`](src/IntroSequence.cpp))**:
    - Replaces the old character splash image (`data/title.png` is preserved untouched in `data/`) with a monochrome green `FIRE STARTER` title screen over a deterministic isometric city backdrop constructed from the original game's road and building tiles (`data/roads.png`, `data/building0.png`–`data/building3.png`, `data/construction0.png`, `data/rubble.png`).
