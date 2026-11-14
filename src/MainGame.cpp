@@ -343,28 +343,46 @@ void MainGame::Player::update() {
 		if (dx != lastDx || dy != lastDy || moveRepeatTimer <= 0) {
 			int gx = mx * 2 + (my & 1);
 			int gy = my;
-			int parity = (gy & 1);
 
 			if (dx != 0 && dy != 0) {
+				// Diagonal input: step directly in that exact isometric direction
 				gx += dx;
 				gy += dy;
-			} else if (dy != 0) {
-				gy += dy;
-				gx += (parity ? -1 : 1);
-			} else if (dx != 0) {
-				gx += dx;
-				gy += (parity ? -1 : 1);
+			} else if (dx < 0) {
+				// Left: step straight along the NW building row
+				gx -= 1;
+				gy -= 1;
+			} else if (dx > 0) {
+				// Right: step straight along the SE building row (exact inverse of Left)
+				gx += 1;
+				gy += 1;
+			} else if (dy < 0) {
+				// Up: step straight along the NE cross-street
+				gx += 1;
+				gy -= 1;
+			} else if (dy > 0) {
+				// Down: step straight along the SW cross-street (exact inverse of Up)
+				gx -= 1;
+				gy += 1;
 			}
 
-			int newMy = gy;
-			int newMx = gx / 2;
-			if (newMx < 0) newMx = 0;
-			if (newMy < 0) newMy = 0;
-			if (newMx >= game->city->width) newMx = game->city->width - 1;
-			if (newMy >= game->city->height) newMy = game->city->height - 1;
+			if (gx < 0) {
+				gx = (gy & 1) ? 1 : 0;
+			}
+			if (gy < 0) {
+				gy = (gx & 1) ? 1 : 0;
+			}
+			if (gx >= game->city->width * 2) {
+				int maxGx = game->city->width * 2 - 1;
+				gx = ((maxGx & 1) == (gy & 1)) ? maxGx : (maxGx - 1);
+			}
+			if (gy >= game->city->height) {
+				int maxGy = game->city->height - 1;
+				gy = ((maxGy & 1) == (gx & 1)) ? maxGy : (maxGy - 1);
+			}
 
-			mx = newMx;
-			my = newMy;
+			mx = gx / 2;
+			my = gy;
 			syncPosFromGrid();
 			selectAnimTick = 0;
 			moveRepeatTimer = 8;
@@ -439,6 +457,11 @@ float sq(float a) {
 	return a*a;
 }
 void MainGame::Police::update() {
+	updatePos();
+	if (game->isAtSelectedSquare(mx, my, pos)) {
+		game->catchPlayer();
+		return;
+	}
 
 	drive();
 
@@ -541,6 +564,12 @@ void MainGame::Police::draw(alBitmap &buffer, bool overlay) {
 MainGame::FireTruck::FireTruck(MainGame *_game) : Police(_game) {
 }
 void MainGame::FireTruck::update() {
+	updatePos();
+	if (game->isAtSelectedSquare(mx, my, pos)) {
+		game->catchPlayer();
+		return;
+	}
+
 	drive();
 
 	updatePos();
