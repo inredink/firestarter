@@ -1,4 +1,3 @@
-
 #ifndef _MAIN_GAME_H
 #define _MAIN_GAME_H
 
@@ -27,6 +26,12 @@ class MainGame : public GameState {
 		int getScore() { return score; }
 		int getHearts() { return hearts; }
 		bool isCanPlay() { return canPlay; }
+		int getSelectedMX() const { return player.mx; }
+		int getSelectedMY() const { return player.my; }
+		bool isSelectedSquareBurning() const;
+		void moveSelectionToVehicle(int index);
+		bool isAtSelectedSquare(int vmx, int vmy, const vector2f &vpos) const;
+		void catchPlayer();
 		bool paused;
 
 	private:

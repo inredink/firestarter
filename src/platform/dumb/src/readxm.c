@@ -81,6 +81,7 @@
 #define XM_VIBRATO_RAMP_UP 3
 
 /* Probably useless :) */
+extern const char xm_convert_vibrato[];
 const char xm_convert_vibrato[] = {IT_VIBRATO_SINE, IT_VIBRATO_XM_SQUARE,
                                    IT_VIBRATO_RAMP_DOWN, IT_VIBRATO_RAMP_UP,
                                    IT_VIBRATO_RANDOM};

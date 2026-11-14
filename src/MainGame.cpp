@@ -1,4 +1,3 @@
-
 #include <cmath>
 
 #include "Global.h"
@@ -116,6 +115,58 @@ void MainGame::setup() {
 	}
 }
 
+bool MainGame::isAtSelectedSquare(int vmx, int vmy, const vector2f &vpos) const {
+	if (!city || !canPlay) return false;
+
+	// Direct match: Police or FireTruck is on the exact selected square
+	if (vmx == player.mx && vmy == player.my) {
+		return true;
+	}
+
+	// If the currently selected square is a building/non-road square (which road vehicles
+	// cannot drive onto directly), check if the Police or FireTruck has reached the road
+	// square directly bordering the selected building square.
+	if (city->getCellType(player.mx, player.my) != 1) {
+		bool alt = (vmy % 2) == 1;
+		bool isAdjacentSquare =
+			(player.mx == vmx - (alt ? 0 : 1) && player.my == vmy - 1) ||
+			(player.mx == vmx + (alt ? 1 : 0) && player.my == vmy - 1) ||
+			(player.mx == vmx - (alt ? 0 : 1) && player.my == vmy + 1) ||
+			(player.mx == vmx + (alt ? 1 : 0) && player.my == vmy + 1);
+
+		if (isAdjacentSquare) {
+			float selCenterX = (float)(player.mx * 40 + ((player.my % 2) ? 20 : 0) + 19);
+			float selCenterY = (float)(player.my * 10 + 10);
+			if (fabs(vpos.x - selCenterX) <= 22.0f && fabs(vpos.y - selCenterY) <= 12.0f) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void MainGame::catchPlayer() {
+	if (!canPlay) return;
+	hearts = 0;
+	canPlay = false;
+	time = 0;
+	play_sample(sirenfx, 200, 128, 1000, 0);
+}
+
+bool MainGame::isSelectedSquareBurning() const {
+	if (!city) return false;
+	Cell *c = city->getCell(player.mx, player.my);
+	return c && (c->fire != 0);
+}
+
+void MainGame::moveSelectionToVehicle(int index) {
+	if (index >= 1 && index < (int)sprites.size()) {
+		player.pos = sprites[index]->pos;
+		player.updatePos();
+	}
+}
+
 
 void MainGame::update() {
 
@@ -209,15 +260,25 @@ void MainGame::draw(alBitmap &targetBuffer) {
 void MainGame::GameObject::updatePos() {
 	int x = (int)pos.x;
 	int y = (int)pos.y;
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
 	mx = (x/40);
 	my = (y/20)*2;
 	int color = getpixel(game->mask, x%40, y%20);
 	if (getr(color)>128) my++;
 	if (getg(color)>128) my--;
 	if (getb(color)>128) mx--;
+	if (game && game->city) {
+		if (mx < 0) mx = 0;
+		if (my < 0) my = 0;
+		if (mx >= game->city->width) mx = game->city->width - 1;
+		if (my >= game->city->height) my = game->city->height - 1;
+	}
 }
 
 MainGame::Player::Player() {
+	px = 0;
+	py = 0;
 	sa = new SpriteAnimator(gSys->rm.load<Sprite>("data/player.nws"));
 }
 MainGame::Player::~Player() {
@@ -235,47 +296,40 @@ void MainGame::Player::update() {
 	if (gSys->input->isDown(DOWN))
 		dy++;
 
-	pos.x += dx * 0.5;
+	// Move the tile selector freely across all city squares (including buildings)
+	pos.x = constrain(pos.x + dx * 0.8f, 20.0f, (float)(game->city->width * 40 - 20));
+	pos.y = constrain(pos.y + dy * 0.4f, 10.0f, (float)(game->city->height * 10 - 10));
 	updatePos();
-	if (game->city->getCellType(mx,my)>=100)
-		pos.x-=dx * 0.5;
 
-	pos.y += dy * 0.25;
-	updatePos();
-	if (game->city->getCellType(mx,my)>=100)
-		pos.y -= dy * 0.25;
-
-	if (dx||dy) {
-		if (dy&&dx)
-			sa->transition(dy>0 ? 1 : 3,true);
-		else if (dy)
-			sa->transition(dy>0 ? 0 : 4,true);
-		else
-			sa->transition(2,true);
-		if (dx)
-			sa->setMirror(dx>0);
-		px = dx*4;
-		py = dy*4;
-	} else
-		sa->stop();
-	sa->update();
-
+	// Pressing A burns the building in the currently selected square
 	if (gSys->input->isDown(A)) {
-		pos.x += px;
-		pos.y += py;
-		updatePos();
-		game->city->burnCell(mx,my,10);
-		pos.x -= px;
-		pos.y -= py;
-		updatePos();
+		game->city->burnCell(mx, my, 10);
 	}
 }
+
+static void drawIsometricSquareRing(BITMAP *bmp, int cx, int topY, int halfW, int halfH, int color) {
+	line(bmp, cx, topY, cx + halfW, topY + halfH, color);
+	line(bmp, cx + halfW, topY + halfH, cx, topY + halfH * 2, color);
+	line(bmp, cx, topY + halfH * 2, cx - halfW, topY + halfH, color);
+	line(bmp, cx - halfW, topY + halfH, cx, topY, color);
+}
+
 void MainGame::Player::draw(alBitmap &buffer, bool overlay) {
-	vector2f p(pos.x-game->viewport.x,pos.y-game->viewport.y);
+	int alt = (my % 2) != 0 ? 20 : 0;
+	int xx = mx * 40 + alt - (int)game->viewport.x;
+	int yy = my * 10 - (int)game->viewport.y;
+	int cx = xx + 19;
+	BITMAP *bmp = buffer.getBITMAP();
+
 	if (!overlay) {
-		sa->draw(buffer.getBITMAP(),p);
+		// Ground-level tile selection square under building sprites
+		drawIsometricSquareRing(bmp, cx, yy,     19, 9, gSys->colors[0]);
+		drawIsometricSquareRing(bmp, cx, yy + 1, 17, 8, gSys->colors[5]);
 	} else {
-		buffer.draw(game->playerptr,(int)p.x-3,(int)p.y-20);
+		// High-contrast 3-ring isometric square outline so the selected square is always visible
+		drawIsometricSquareRing(bmp, cx, yy,     19, 9, gSys->colors[0]);
+		drawIsometricSquareRing(bmp, cx, yy + 1, 17, 8, gSys->colors[5]);
+		drawIsometricSquareRing(bmp, cx, yy + 2, 15, 7, gSys->colors[0]);
 	}
 }
 
@@ -289,7 +343,7 @@ MainGame::Police::Police(MainGame *_game) {
 
 	int ddx = (int)(game->player.pos.x-pos.x);
 	int ddy = (int)(game->player.pos.y-pos.y);
-	if (sqrt(ddx*ddx+ddy*ddy)<100) {
+	if (sqrt(ddx*ddx+ddy*ddy)<140) {
 		if (game->player.pos.x<250)
 			pos.x+=300;
 		else
@@ -298,8 +352,9 @@ MainGame::Police::Police(MainGame *_game) {
 
 
 	updatePos();
-	while (game->city->getCellType(mx,my)!=1) {
+	while (game->city->getCellType(mx,my)!=1 || game->isAtSelectedSquare(mx, my, pos)) {
 		pos.y+=20;
+		if (pos.y > game->city->height * 10 - 100) pos.y = 100;
 		updatePos();
 	}
 
@@ -331,30 +386,29 @@ void MainGame::Police::update() {
 	drive();
 
 	updatePos();
+	if (game->isAtSelectedSquare(mx, my, pos)) {
+		game->catchPlayer();
+		return;
+	}
+
 	int ddx = (int)(game->player.pos.x-pos.x);
 	int ddy = (int)(game->player.pos.y-pos.y);
-	if (game->city->getCellType(game->player.mx,game->player.my)==1) {
-		if (sqrt(ddx*ddx+ddy*ddy)<15) {
-			game->player.pos = game->player.startpos;
-			game->hearts--;
-			play_sample(game->sirenfx, 200, 128, 1000, 0);
-		} else if (sqrt(ddx*ddx+ddy*ddy)<100 && abs(ddx)>10 && abs(ddy)>10) {
-			if (ddx!=0)
-				ddx/=abs(ddx);
-			if (ddy!=0)
-				ddy/=abs(ddy);
+	if (sqrt(ddx*ddx+ddy*ddy)<100 && abs(ddx)>10 && abs(ddy)>10) {
+		if (ddx!=0)
+			ddx/=abs(ddx);
+		if (ddy!=0)
+			ddy/=abs(ddy);
 
-			pos.x += ddx * 10;
-			pos.y += ddy * 5;
-			updatePos();
-			pos.x -= ddx * 10;
-			pos.y -= ddy * 5;
-			if (game->city->getCellType(mx,my)==1) {
-				dx = ddx;
-				dy = ddy;
-			}
+		pos.x += ddx * 10;
+		pos.y += ddy * 5;
+		updatePos();
+		pos.x -= ddx * 10;
+		pos.y -= ddy * 5;
+		if (game->city->getCellType(mx,my)==1) {
+			dx = ddx;
+			dy = ddy;
 		}
-
+		updatePos();
 	}
 }
 void MainGame::Police::drive() {
@@ -432,12 +486,16 @@ void MainGame::FireTruck::update() {
 	drive();
 
 	updatePos();
+	if (game->isAtSelectedSquare(mx, my, pos)) {
+		game->catchPlayer();
+		return;
+	}
 
 	bool alt = (my%2) == 1;
 	restore(mx-(alt?0:1),my-1);
-	restore(mx-(alt?1:0),my-1);
+	restore(mx+(alt?1:0),my-1);
 	restore(mx-(alt?0:1),my+1);
-	restore(mx-(alt?1:0),my+1);
+	restore(mx+(alt?1:0),my+1);
 }
 void MainGame::FireTruck::restore(int x, int y) {
 	Cell *c = game->city->getCell(x,y);
@@ -513,7 +571,8 @@ MainGame::LevelMap::LevelMap(MainGame *_game, int _width, int _height) {
 
 }
 void MainGame::LevelMap::makeCenter(int cx, int cy) {
-	setCellType(cx,cy,-1);
+	if (getCellType(cx,cy)<=100)
+		setCellType(cx,cy,102+rand()%(BUILDING_COUNT-2));
 	setCellType(cx,cy+3,-1);
 	setCellType(cx,cy-2,1);
 	setCellType(cx,cy+2,1);
@@ -704,10 +763,10 @@ void MainGame::LevelMap::drawMap(alBitmap &buffer) {
 	for (vector<GameObject*>::iterator ii = game->sprites.begin(); ii != game->sprites.end(); ii++) {
 		GameObject *s = *ii;
 		s->updatePos();
-		int xx = s->mx*2 + (alt?1:0) - (int)(game->viewport.x+100)/20+100;
+		int xx = s->mx*2 + ((s->my%2)?1:0) - (int)(game->viewport.x+100)/20+100;
 		int yy = s->my - (int)(game->viewport.y+150)/20+150;
 		buffer.setPixel(xx,yy,gSys->colors[0]);
 		if (s==&(game->player))
-			buffer.draw(game->playerptr, xx-3,yy-7);
+			buffer.rect(xx-2,yy-2,xx+2,yy+2,gSys->colors[0]);
 	}
 }
