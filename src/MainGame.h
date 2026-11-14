@@ -63,7 +63,7 @@ class MainGame : public GameState {
 				virtual void update() = 0;
 
 				virtual void draw(alBitmap &buffer, bool overlay = false) = 0;
-				void updatePos();
+				virtual void updatePos();
 			public:
 				friend class MainGame;
 				vector2f pos;
@@ -78,10 +78,15 @@ class MainGame : public GameState {
 				Player();
 				virtual ~Player();
 				virtual void update();
-
+				virtual void updatePos();
 				virtual void draw(alBitmap &buffer, bool overlay = false);
+				void syncPosFromGrid();
+				float getSelectFade() const;
 			public:
 				int px,py;
+				int lastDx, lastDy;
+				int moveRepeatTimer;
+				int selectAnimTick;
 				vector2f startpos;
 				SpriteAnimator *sa;
 		};
@@ -164,7 +169,5 @@ class MainGame : public GameState {
 
 		LevelMap *city;
 };
-
-
 
 #endif

@@ -96,12 +96,21 @@ void MainGame::setup() {
 	city = new LevelMap(this,50,100);
 	canPlay = true;
 	paused = false;
-	player.startpos.x = random(200,city->width*40 - 200);
-	player.startpos.y = random(200,city->height*10 - 200);
-	player.pos = player.startpos;
+
 	player.game = this;
-	player.updatePos();
+	player.mx = 5 + rand() % (city->width - 10);
+	player.my = 10 + rand() % (city->height - 20);
+	player.lastDx = 0;
+	player.lastDy = 0;
+	player.moveRepeatTimer = 0;
+	player.selectAnimTick = 0;
+	player.syncPosFromGrid();
+	player.startpos = player.pos;
+
 	city->makeCenter(player.mx,player.my);
+
+	viewport.x = constrain(player.pos.x - 100.0f, -5.0f, (float)(city->width * 40 - 195));
+	viewport.y = constrain(player.pos.y - 150.0f, -30.0f, (float)(city->height * 10 - 270));
 
 	for (vector<GameObject*>::iterator ii = sprites.begin(); ii != sprites.end(); ii++)
 		if ((*ii) != &player)
@@ -162,8 +171,10 @@ bool MainGame::isSelectedSquareBurning() const {
 
 void MainGame::moveSelectionToVehicle(int index) {
 	if (index >= 1 && index < (int)sprites.size()) {
-		player.pos = sprites[index]->pos;
-		player.updatePos();
+		sprites[index]->updatePos();
+		player.mx = sprites[index]->mx;
+		player.my = sprites[index]->my;
+		player.syncPosFromGrid();
 	}
 }
 
@@ -185,8 +196,8 @@ void MainGame::update() {
 			(*ii)->updatePos();
 		}
 
-		viewport.x += (constrain(player.pos.x-100, -5, city->width*40 - 195)-viewport.x)/10;
-		viewport.y += (constrain(player.pos.y-150, -30, city->height*10 - 270)-viewport.y)/10;
+		viewport.x += (constrain(player.pos.x-100, -5, city->width*40 - 195)-viewport.x)/6.0f;
+		viewport.y += (constrain(player.pos.y-150, -30, city->height*10 - 270)-viewport.y)/6.0f;
 
 		time++;
 
@@ -279,12 +290,42 @@ void MainGame::GameObject::updatePos() {
 MainGame::Player::Player() {
 	px = 0;
 	py = 0;
+	mx = 0;
+	my = 0;
+	lastDx = 0;
+	lastDy = 0;
+	moveRepeatTimer = 0;
+	selectAnimTick = 0;
 	sa = new SpriteAnimator(gSys->rm.load<Sprite>("data/player.nws"));
 }
 MainGame::Player::~Player() {
 	delete sa;
 }
+
+void MainGame::Player::syncPosFromGrid() {
+	if (game && game->city) {
+		if (mx < 0) mx = 0;
+		if (my < 0) my = 0;
+		if (mx >= game->city->width) mx = game->city->width - 1;
+		if (my >= game->city->height) my = game->city->height - 1;
+	}
+	pos.x = (float)(mx * 40 + ((my % 2) ? 20 : 0) + 19);
+	pos.y = (float)(my * 10 + 10);
+}
+
+void MainGame::Player::updatePos() {
+	syncPosFromGrid();
+}
+
+float MainGame::Player::getSelectFade() const {
+	// Starts at 0.80f on tick 0 (the instant a square is selected) and smoothly
+	// fades in and out between 0.15f and 0.80f over a 48-tick (0.48s) cycle.
+	return 0.475f + 0.325f * (float)cos(selectAnimTick * 2.0 * 3.14159265 / 48.0);
+}
+
 void MainGame::Player::update() {
+	selectAnimTick++;
+
 	int dx = 0;
 	int dy = 0;
 	if (gSys->input->isDown(LEFT))
@@ -296,10 +337,46 @@ void MainGame::Player::update() {
 	if (gSys->input->isDown(DOWN))
 		dy++;
 
-	// Move the tile selector freely across all city squares (including buildings)
-	pos.x = constrain(pos.x + dx * 0.8f, 20.0f, (float)(game->city->width * 40 - 20));
-	pos.y = constrain(pos.y + dy * 0.4f, 10.0f, (float)(game->city->height * 10 - 10));
-	updatePos();
+	if (dx != 0 || dy != 0) {
+		// Move immediately on the very first frame a direction is pressed or changed,
+		// with no initial pause; when held down, step smoothly every 8 ticks (80 ms).
+		if (dx != lastDx || dy != lastDy || moveRepeatTimer <= 0) {
+			int gx = mx * 2 + (my & 1);
+			int gy = my;
+			int parity = (gy & 1);
+
+			if (dx != 0 && dy != 0) {
+				gx += dx;
+				gy += dy;
+			} else if (dy != 0) {
+				gy += dy;
+				gx += (parity ? -1 : 1);
+			} else if (dx != 0) {
+				gx += dx;
+				gy += (parity ? -1 : 1);
+			}
+
+			int newMy = gy;
+			int newMx = gx / 2;
+			if (newMx < 0) newMx = 0;
+			if (newMy < 0) newMy = 0;
+			if (newMx >= game->city->width) newMx = game->city->width - 1;
+			if (newMy >= game->city->height) newMy = game->city->height - 1;
+
+			mx = newMx;
+			my = newMy;
+			syncPosFromGrid();
+			selectAnimTick = 0;
+			moveRepeatTimer = 8;
+		} else {
+			moveRepeatTimer--;
+		}
+	} else {
+		moveRepeatTimer = 0;
+	}
+
+	lastDx = dx;
+	lastDy = dy;
 
 	// Pressing A burns the building in the currently selected square
 	if (gSys->input->isDown(A)) {
@@ -307,30 +384,10 @@ void MainGame::Player::update() {
 	}
 }
 
-static void drawIsometricSquareRing(BITMAP *bmp, int cx, int topY, int halfW, int halfH, int color) {
-	line(bmp, cx, topY, cx + halfW, topY + halfH, color);
-	line(bmp, cx + halfW, topY + halfH, cx, topY + halfH * 2, color);
-	line(bmp, cx, topY + halfH * 2, cx - halfW, topY + halfH, color);
-	line(bmp, cx - halfW, topY + halfH, cx, topY, color);
-}
-
 void MainGame::Player::draw(alBitmap &buffer, bool overlay) {
-	int alt = (my % 2) != 0 ? 20 : 0;
-	int xx = mx * 40 + alt - (int)game->viewport.x;
-	int yy = my * 10 - (int)game->viewport.y;
-	int cx = xx + 19;
-	BITMAP *bmp = buffer.getBITMAP();
-
-	if (!overlay) {
-		// Ground-level tile selection square under building sprites
-		drawIsometricSquareRing(bmp, cx, yy,     19, 9, gSys->colors[0]);
-		drawIsometricSquareRing(bmp, cx, yy + 1, 17, 8, gSys->colors[5]);
-	} else {
-		// High-contrast 3-ring isometric square outline so the selected square is always visible
-		drawIsometricSquareRing(bmp, cx, yy,     19, 9, gSys->colors[0]);
-		drawIsometricSquareRing(bmp, cx, yy + 1, 17, 8, gSys->colors[5]);
-		drawIsometricSquareRing(bmp, cx, yy + 2, 15, 7, gSys->colors[0]);
-	}
+	// No avatar or wireframe square over buildings; the selected building/tile fades in and out in LevelMap::draw()
+	(void)buffer;
+	(void)overlay;
 }
 
 
@@ -473,6 +530,7 @@ void MainGame::Police::drive() {
 }
 void MainGame::Police::draw(alBitmap &buffer, bool overlay) {
 	vector2i p((int)pos.x-(int)game->viewport.x,(int)pos.y-(int)game->viewport.y);
+	if (p.x < -24 || p.x > 224 || p.y < -24 || p.y > 324) return;
 	if (!overlay) {
 		buffer.draw(game->police,p.x-10,p.y-3,
 					dx<0 ? 0 : 16, dy>0 ? 0 : 11, 16, 11);
@@ -513,6 +571,7 @@ void MainGame::FireTruck::restore(int x, int y) {
 }
 void MainGame::FireTruck::draw(alBitmap &buffer, bool overlay) {
 	vector2i p((int)pos.x-(int)game->viewport.x,(int)pos.y-(int)game->viewport.y);
+	if (p.x < -24 || p.x > 224 || p.y < -24 || p.y > 324) return;
 	if (!overlay) {
 		buffer.draw(game->firetruck,p.x-8,p.y-3,
 					dx<0 ? 0 : 21, dy>0 ? 0 : 16, 21, 16);
@@ -585,15 +644,6 @@ void MainGame::LevelMap::makeCenter(int cx, int cy) {
 	setCellType(cx+xx,cy+1,1);
 	setCellType(cx+xx-1,cy-1,1);
 	setCellType(cx+xx-1,cy+1,1);
-	/*
-	for (int y=-4; y<5; y++) {
-		for (int x=1; x<5-abs(y); x++) {
-			setCellType(cx+x,cy+y,1);
-			setCellType(cx-x,cy+y,1);
-		}
-		setCellType(cx+5-abs(y),cy+y,1);
-		setCellType(cx-5+abs(y),cy+y,1);
-	}*/
 }
 
 MainGame::LevelMap::~LevelMap() {
@@ -604,22 +654,99 @@ void MainGame::LevelMap::update() {
 		for (int x=0; x<width; x++)
 			getCell(x,y)->update();
 }
+
+static void drawFadedSprite(BITMAP *dst, BITMAP *src, int dx, int dy, float fade) {
+	int maskColor = bitmap_mask_color(src);
+	int dstW = dst->w;
+	int dstH = dst->h;
+	int srcW = src->w;
+	int srcH = src->h;
+
+	for (int py = 0; py < srcH; py++) {
+		int ty = dy + py;
+		if (ty < 0 || ty >= dstH) continue;
+		for (int px = 0; px < srcW; px++) {
+			int tx = dx + px;
+			if (tx < 0 || tx >= dstW) continue;
+			int c = getpixel(src, px, py);
+			if (c == maskColor) continue;
+			int bg = getpixel(dst, tx, ty);
+			int r = getr(c) + (int)((getr(bg) - getr(c)) * fade);
+			int g = getg(c) + (int)((getg(bg) - getg(c)) * fade);
+			int b = getb(c) + (int)((getb(bg) - getb(c)) * fade);
+			putpixel(dst, tx, ty, makecol(r, g, b));
+		}
+	}
+}
+
+static void drawFadedGroundTile(BITMAP *dst, BITMAP *maskBmp, int dx, int dy, float fade, int fillColor, int borderColor) {
+	int fillR = getr(fillColor), fillG = getg(fillColor), fillB = getb(fillColor);
+	int bordR = getr(borderColor), bordG = getg(borderColor), bordB = getb(borderColor);
+	int dstW = dst->w;
+	int dstH = dst->h;
+
+	for (int py = 0; py < 20; py++) {
+		int ty = dy + py;
+		if (ty < 0 || ty >= dstH) continue;
+		for (int px = 0; px < 40; px++) {
+			int tx = dx + px;
+			if (tx < 0 || tx >= dstW) continue;
+			int mc = getpixel(maskBmp, px, py);
+			// In data/mask.png, the center isometric diamond of the tile is black (r<128, g<128, b<128)
+			if (getr(mc) < 128 && getg(mc) < 128 && getb(mc) < 128) {
+				bool isEdge = false;
+				if (px == 0 || px == 39 || py == 0 || py == 19) {
+					isEdge = true;
+				} else {
+					int mL = getpixel(maskBmp, px - 1, py);
+					int mR = getpixel(maskBmp, px + 1, py);
+					int mU = getpixel(maskBmp, px, py - 1);
+					int mD = getpixel(maskBmp, px, py + 1);
+					if (getr(mL) >= 128 || getg(mL) >= 128 || getb(mL) >= 128 ||
+					    getr(mR) >= 128 || getg(mR) >= 128 || getb(mR) >= 128 ||
+					    getr(mU) >= 128 || getg(mU) >= 128 || getb(mU) >= 128 ||
+					    getr(mD) >= 128 || getg(mD) >= 128 || getb(mD) >= 128) {
+						isEdge = true;
+					}
+				}
+				int c = getpixel(dst, tx, ty);
+				int tr = isEdge ? bordR : fillR;
+				int tg = isEdge ? bordG : fillG;
+				int tb = isEdge ? bordB : fillB;
+				float f = isEdge ? fade : (fade * 0.65f);
+				int r = getr(c) + (int)((tr - getr(c)) * f);
+				int g = getg(c) + (int)((tg - getg(c)) * f);
+				int b = getb(c) + (int)((tb - getb(c)) * f);
+				putpixel(dst, tx, ty, makecol(r, g, b));
+			}
+		}
+	}
+}
+
 void MainGame::LevelMap::draw(alBitmap &buffer) {
+	int vx = (int)game->viewport.x;
+	int vy = (int)game->viewport.y;
+	int bufW = buffer.getWidth();
+	int bufH = buffer.getHeight();
+	float selectFade = game->player.getSelectFade();
+
 	bool alt = false;
 	for (int y=0; y<height; y++) {
-		int yy = y*10 - (int)game->viewport.y;
+		int yy = y*10 - vy;
+		if (yy <= -20 || yy >= bufH) {
+			alt = !alt;
+			continue;
+		}
 
-		// draw roads/land
+		// draw roads/land (culled to visible viewport)
 		for (int x=0; x<width; x++) {
-			int xx = x*40 + (alt?20:0) - (int)game->viewport.x;
+			int xx = x*40 + (alt?20:0) - vx;
+			if (xx <= -40 || xx >= bufW) continue;
 
 			Cell *cell = getCell(x,y);
 			int type = cell->type;
 			int roadtype = 0;
 			if (type==1) {
-				/*  following code to merge roads automatically using binary
-						// tl, tr, bl, br
-				*/
 				// top left
 				if (getCellType(x-(alt?0:1),y-1)==1)
 					roadtype |= 8;
@@ -636,49 +763,50 @@ void MainGame::LevelMap::draw(alBitmap &buffer) {
 			buffer.draw(game->tiles, xx, yy,
 								 roadtype*38, 0, 40, 20);
 
-
+			// If an empty/road tile is selected (no building on it), fade its ground tile
+			// in and out underneath any surrounding buildings.
+			if (x == game->player.mx && y == game->player.my && type < 100) {
+				drawFadedGroundTile(buffer.getBITMAP(), game->mask, xx, yy, selectFade, gSys->colors[2], gSys->colors[0]);
+			}
 		}
 		alt = !alt;
 	}
+
 	alt = false;
 	for (int y=0; y<height; y++) {
-		int yy = y*10 - (int)game->viewport.y;
+		int yy = y*10 - vy;
+		if (yy <= -20 || yy - 60 >= bufH) {
+			alt = !alt;
+			continue;
+		}
 
-		// draw roads/land
+		// draw buildings (culled to visible viewport)
 		for (int x=0; x<width; x++) {
-			int xx = x*40 + (alt?20:0) - (int)game->viewport.x;
+			int xx = x*40 + (alt?20:0) - vx;
+			if (xx <= -40 || xx >= bufW) continue;
 
 			Cell *cell = getCell(x,y);
 			int type = cell->type;
 			if (type>=100) {
 				BITMAP *img = game->buildings[type-100];
-				buffer.draw(img, xx, yy - img->h + 20);
+				int drawY = yy - img->h + 20;
+				if (x == game->player.mx && y == game->player.my) {
+					drawFadedSprite(buffer.getBITMAP(), img, xx, drawY, selectFade);
+				} else {
+					buffer.draw(img, xx, drawY);
+				}
 				if (cell->fire)
 					cell->fire->draw(buffer.getBITMAP(),vector2i(xx,yy));
 			}
 		}
 
-		// draw sprites
-
+		// draw vehicles on row y
 		for (vector<GameObject*>::iterator ii = game->sprites.begin(); ii != game->sprites.end(); ii++) {
 			GameObject *s = *ii;
-			if (s->my==y)
+			if (s != &(game->player) && s->my==y)
 				s->draw(buffer);
 		}
 
-		// draw building overlays
-
-		for (int x=0; x<width; x++) {
-			int xx = x*40 + (alt?20:0) - (int)game->viewport.x;
-
-			int type = getCellType(x,y);
-			Cell *cell = getCell(x,y);
-			if (type>=100) {
-				buffer.draw(game->buildings2[type-100], xx, yy - game->buildings2[type-100].getHeight() + 20);
-				if (cell->fire)
-					cell->fire->draw(buffer.getBITMAP(),vector2i(xx,yy));
-			}
-		}
 		alt = !alt;
 	}
 }

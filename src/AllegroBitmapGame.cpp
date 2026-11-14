@@ -31,6 +31,9 @@ bool AllegroBitmapGame::setFullscreen(bool _fullscreen, bool force) {
 	return true;
 }
 void AllegroBitmapGame::updateScreen() {
+#ifndef FIRESTARTER_PLATFORM_ESP32
+	vsync();
+#endif
 	acquire_screen();
 	buffer.blitTo(screen, 0, 0);
 	release_screen();
@@ -41,4 +44,3 @@ void AllegroBitmapGame::drawScreen() {
 	drawScreen(buffer);
 	buffer.release();
 }
-

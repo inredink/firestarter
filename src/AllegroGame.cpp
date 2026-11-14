@@ -61,17 +61,21 @@ void AllegroGame::run() {
 	running = true;
 
 	while (running) {
-		while (timeCount > 0) {
-			updateGameLogic();
-			timeCount--;
-			if (timeCount>=100) {
-				timeCount = 0;
-				break;
+		if (timeCount > 0) {
+			while (timeCount > 0) {
+				updateGameLogic();
+				timeCount--;
+				if (timeCount>=100) {
+					timeCount = 0;
+					break;
+				}
 			}
+			drawScreen();
+			updateScreen();
+			frameCount++;
+		} else {
+			rest(1);
 		}
-		drawScreen();
-		updateScreen();
-		frameCount++;
 	}
 
 }
